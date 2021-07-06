@@ -23,7 +23,7 @@
             </div>
             <div class="central-body">
                 <img class="image-404" src="http://salehriaz.com/404Page/img/404.svg" width="300px">
-                <a href="http://salehriaz.com/404Page/404.html" class="btn-go-home" target="_blank">THIS WEBAPP INDEXES XRPL FOR ANY NFT.... YOU SHOULDN'T BE HERE.</a>
+                <a href="https://github.com/francisrosario/" class="btn-go-home" target="_blank">THIS WEBAPP INDEXES XRPL FOR ANY NFT.... YOU SHOULDN'T BE HERE.</a>
             </div>
             <div class="objects">
                 <img class="object_rocket" src="http://salehriaz.com/404Page/img/rocket.svg" width="40px">
