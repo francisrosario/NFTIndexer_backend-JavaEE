@@ -2,6 +2,10 @@ package com.xwt.NFTIndexer.service;
 
 import com.mgnt.utils.TimeUtils;
 import com.xwt.NFTIndexer.xrp4j;
+import io.ipfs.api.IPFS;
+import io.ipfs.multihash.Multihash;
+import org.apache.commons.io.IOUtils;
+import org.apache.tika.Tika;
 import org.bouncycastle.util.encoders.UTF8;
 import org.quartz.Job;
 import org.quartz.JobExecutionContext;
@@ -13,6 +17,8 @@ import org.xrpl.xrpl4j.model.ledger.AccountRootObject;
 import org.xrpl.xrpl4j.model.transactions.Transaction;
 
 import javax.xml.bind.DatatypeConverter;
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
@@ -33,7 +39,7 @@ public class IndexerJob implements Job {
         initialMarker = 18999959l;
         boolean ledgerIsClosed = false;
         boolean loop = true;
-
+        IPFS ipfs = new IPFS("/ip4/127.0.0.1/tcp/5001");
         do {
             System.out.println("Current ledger marker: " + initialMarker);
             do {
@@ -73,10 +79,18 @@ public class IndexerJob implements Job {
                             System.out.println("\n\nFound a NFT");
                             String[] parts = domain.split("\n");
                             for(int x = 1; x < parts.length; x++){
-                                System.out.println(parts[x]);
-
-                                //Check if ipfs contentType
-
+                                if(parts[x].subSequence(5,parts[x].length()).toString().startsWith("Qm")){
+                                    try {
+                                        InputStream ins = ipfs.catStream(Multihash.fromBase58(parts[x].subSequence(5, parts[x].length()).toString()));
+                                        byte[] bytes = IOUtils.toByteArray(ins);
+                                        String contentType = new Tika().detect(bytes);
+                                        if(contentType.startsWith("image")){
+                                            System.out.println("Image content type found...");
+                                        }
+                                    } catch (IOException e) {
+                                        e.printStackTrace();
+                                    }
+                                }
                                 //If image convert it to base64
                                 //else just get the IPFS Hash
 
