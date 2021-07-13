@@ -61,7 +61,7 @@ public class xrp4j {
 
     public static class WorkerJobLogic{
         private Logger logger = Logger.getLogger(IndexerJob.class.getName());
-        private IPFS ipfs = new IPFS("/ip4/127.0.0.1/tcp/5001");
+        private IPFS ipfs = new IPFS(System.getenv("IPFS_Multiaddress"));
         private xrp4j lg = new xrp4j();
         private xrp4j.DAL dal = new xrp4j.DAL();
 
