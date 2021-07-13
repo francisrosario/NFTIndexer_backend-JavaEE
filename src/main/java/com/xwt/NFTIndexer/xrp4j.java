@@ -66,10 +66,10 @@ public class xrp4j {
         private xrp4j.DAL dal = new xrp4j.DAL();
 
         private long initialMarker;
-
         private boolean ledgerIsClosed = false;
         private boolean loop = true;
         private String ipfsImage;
+        private AccountRootObject accountInfo;
 
         public void indexerLogic() throws JsonRpcClientErrorException, IOException, SQLException, IllegalAccessException, ClassNotFoundException, InstantiationException {
             //initialMarker = 18999959l; -- Ledger# with XLS19d
@@ -98,12 +98,27 @@ public class xrp4j {
                 for (int i = 0; i < transactionSize; i++) {
                     TransactionResult<? extends Transaction> transactionResult = getLedgerResult.get(i);
                     //If ACCOUNT_SET domain transaction is found use ledger transaction address to get more data.
-                    if(transactionResult.transaction().transactionType().toString() == "ACCOUNT_SET"){
-                        TimeUtils.sleepFor(2, TimeUnit.MINUTES);
+                    if(transactionResult.transaction().transactionType().toString().equals("ACCOUNT_SET")){
                         logger.info(String.valueOf(transactionResult.transaction()));
                         String AccountAddress = transactionResult.transaction().account().toString();
-                            //Get AccountRootObject by using ledger transaction address.
-                            AccountRootObject accountInfo = lg.getInfo(AccountAddress, initialMarker);
+                        //Get AccountRootObject by using ledger transaction address.
+                        boolean haveValue = false;
+                        int retries = 150;
+                        do {
+                            logger.info("Waiting for domain value to appear in account..." + " Retries remaning: " + retries);
+                            accountInfo = lg.getInfo(AccountAddress, initialMarker);
+                            if(accountInfo.domain().isPresent()) {
+                                logger.info("Domain value appeared in account...");
+                                haveValue = true;
+                            }
+                            retries--;
+                            if(retries == 0){
+                                haveValue = true;
+                            }
+
+                            TimeUtils.sleepFor(800, TimeUnit.MILLISECONDS);
+                        }while(!haveValue);
+
                             //Convert domain hex
                             byte[] s = DatatypeConverter.parseHexBinary(accountInfo.domain().get());
                             //Make 's' readable.
@@ -131,8 +146,14 @@ public class xrp4j {
                     }
 
                 }
-                TimeUtils.sleepFor(2, TimeUnit.MINUTES);
                 initialMarker++;
+                boolean isValidated = false;
+                do{
+                    if(lg.getledgerResult(initialMarker).validated()){
+                        isValidated = true;
+                    }
+                    TimeUtils.sleepFor(800, TimeUnit.MILLISECONDS);
+                }while(!isValidated);
             }while(loop);
         }
     }
