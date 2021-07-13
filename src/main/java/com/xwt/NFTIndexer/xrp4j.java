@@ -98,7 +98,7 @@ public class xrp4j {
                 for (int i = 0; i < transactionSize; i++) {
                     TransactionResult<? extends Transaction> transactionResult = getLedgerResult.get(i);
                     //If ACCOUNT_SET domain transaction is found use ledger transaction address to get more data.
-                    if(transactionResult.transaction().transactionType().toString().equals("ACCOUNT_SET")){
+                    if(transactionResult.transaction().transactionType().toString().equals("ACCOUNT_SET") && transactionResult.transaction().toString().contains("domain")){
                         logger.info(String.valueOf(transactionResult.transaction()));
                         String AccountAddress = transactionResult.transaction().account().toString();
                         //Get AccountRootObject by using ledger transaction address.
