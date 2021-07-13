@@ -103,32 +103,23 @@ public class xrp4j {
                         String AccountAddress = transactionResult.transaction().account().toString();
                         //Get AccountRootObject by using ledger transaction address.
                         boolean haveValue = false;
-                        int retries = 150;
+                        int retries = 60;
                         do {
                             logger.info("Waiting for domain value to appear in account..." + " Retries remaning: " + retries);
                             accountInfo = lg.getInfo(AccountAddress, initialMarker);
                             if(accountInfo.domain().isPresent()) {
+                                haveValue = true;
                                 logger.info("Domain value appeared in account...");
-                                haveValue = true;
-                            }
-                            retries--;
-                            if(retries == 0){
-                                haveValue = true;
-                            }
-
-                            TimeUtils.sleepFor(800, TimeUnit.MILLISECONDS);
-                        }while(!haveValue);
-
-                            //Convert domain hex
-                            byte[] s = DatatypeConverter.parseHexBinary(accountInfo.domain().get());
-                            //Make 's' readable.
-                            String domain = new String(s);
-                            if(domain.startsWith("@xnft:")){
-                                logger.info("Found a NFT\n");
-                                //Split the domain parts into the array
-                                String[] parts = domain.split("\n");
-                                for(int x = 1; x < parts.length; x++){
-                                    if(parts[x].subSequence(5,parts[x].length()).toString().startsWith("Qm")){
+                                //Convert domain hex
+                                byte[] s = DatatypeConverter.parseHexBinary(accountInfo.domain().get());
+                                //Make 's' readable.
+                                String domain = new String(s);
+                                if(domain.startsWith("@xnft:")){
+                                    logger.info("Found a NFT\n");
+                                    //Split the domain parts into the array
+                                    String[] parts = domain.split("\n");
+                                    for(int x = 1; x < parts.length; x++){
+                                        if(parts[x].subSequence(5,parts[x].length()).toString().startsWith("Qm")){
                                             InputStream ins = ipfs.catStream(Multihash.fromBase58(parts[x].subSequence(5, parts[x].length()).toString()));
                                             byte[] bytes = IOUtils.toByteArray(ins);
                                             String contentType = new Tika().detect(bytes);
@@ -140,11 +131,17 @@ public class xrp4j {
                                                 //Insert compiled data to database
                                                 dal.insertNFTData(PK, AccountAddress, ipfsImage);
                                             }
+                                        }
                                     }
                                 }
                             }
+                            retries--;
+                            if(retries == 0){
+                                haveValue = true;
+                            }
+                            TimeUtils.sleepFor(800, TimeUnit.MILLISECONDS);
+                        }while(!haveValue);
                     }
-
                 }
                 initialMarker++;
                 boolean isValidated = false;
