@@ -129,8 +129,9 @@ public class xrp4j {
                                 }
                             }
                     }
-                    TimeUtils.sleepFor(2, TimeUnit.MINUTES);
+
                 }
+                TimeUtils.sleepFor(2, TimeUnit.MINUTES);
                 initialMarker++;
             }while(loop);
         }
