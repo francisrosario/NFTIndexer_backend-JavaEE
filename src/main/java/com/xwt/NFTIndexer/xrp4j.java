@@ -1,5 +1,6 @@
 package com.xwt.NFTIndexer;
 
+import com.mysql.cj.protocol.Resultset;
 import com.xwt.NFTIndexer.service.IndexerJob;
 import okhttp3.HttpUrl;
 import org.xrpl.xrpl4j.client.JsonRpcClientErrorException;
@@ -12,27 +13,19 @@ import org.xrpl.xrpl4j.model.client.ledger.LedgerResult;
 import org.xrpl.xrpl4j.model.ledger.AccountRootObject;
 import org.xrpl.xrpl4j.model.transactions.Address;
 import com.mgnt.utils.TimeUtils;
-import com.xwt.NFTIndexer.xrp4j;
 import io.ipfs.api.IPFS;
 import io.ipfs.multihash.Multihash;
 import org.apache.commons.io.IOUtils;
 import org.apache.tika.Tika;
-import org.bouncycastle.util.encoders.UTF8;
-import org.quartz.Job;
-import org.quartz.JobExecutionContext;
-import org.quartz.JobExecutionException;
-import org.xrpl.xrpl4j.client.JsonRpcClientErrorException;
-import org.xrpl.xrpl4j.model.client.accounts.AccountInfoResult;
 import org.xrpl.xrpl4j.model.client.transactions.TransactionResult;
-import org.xrpl.xrpl4j.model.ledger.AccountRootObject;
 import org.xrpl.xrpl4j.model.transactions.Transaction;
 
 import javax.xml.bind.DatatypeConverter;
 import java.io.IOException;
 import java.io.InputStream;
+import java.sql.*;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
-import java.util.logging.Level;
 import java.util.logging.Logger;
 
 public class xrp4j {
@@ -67,18 +60,20 @@ public class xrp4j {
     }
 
     public static class WorkerJobLogic{
-        public void indexerLogic() throws JsonRpcClientErrorException, IOException {
-            Logger logger = Logger.getLogger(IndexerJob.class.getName());
-            xrp4j lg = new xrp4j();
+        private Logger logger = Logger.getLogger(IndexerJob.class.getName());
+        private IPFS ipfs = new IPFS("/ip4/127.0.0.1/tcp/5001");
+        private xrp4j lg = new xrp4j();
+        private xrp4j.DAL dal = new xrp4j.DAL();
 
-            long initialMarker;
-            //initialMarker = lg.getledgerCI();
-            initialMarker = 18999959l;
+        private long initialMarker;
 
-            boolean ledgerIsClosed = false;
-            boolean loop = true;
+        private boolean ledgerIsClosed = false;
+        private boolean loop = true;
+        private String ipfsImage;
 
-            IPFS ipfs = new IPFS("/ip4/127.0.0.1/tcp/5001");
+        public void indexerLogic() throws JsonRpcClientErrorException, IOException, SQLException, IllegalAccessException, ClassNotFoundException, InstantiationException {
+            //initialMarker = 18999959l; -- Ledger# with XLS19d
+            initialMarker = lg.getledgerCI();
             do {
                 logger.info("Current ledger marker: " + initialMarker);
                 do {
@@ -91,24 +86,30 @@ public class xrp4j {
                     }
                 } while (!ledgerIsClosed);
 
-                List<TransactionResult<? extends Transaction>> getLedgerResult = null;
+                //Get ledger raw data
+                List<TransactionResult<? extends Transaction>> getLedgerResult;
                 getLedgerResult = lg.getledgerResult(initialMarker).ledger().transactions();
 
                 //Get ledger index transaction size
                 int transactionSize = getLedgerResult.size();
                 logger.info("Current ledger transaction size: " + transactionSize);
 
+                //Scan for "ACCOUNT_SET" in ledger transaction
                 for (int i = 0; i < transactionSize; i++) {
                     TransactionResult<? extends Transaction> transactionResult = getLedgerResult.get(i);
+                    //If ACCOUNT_SET domain transaction is found use ledger transaction address to get more data.
                     if(transactionResult.transaction().transactionType().toString() == "ACCOUNT_SET"){
                         logger.info(String.valueOf(transactionResult.transaction()));
                         String AccountAddress = transactionResult.transaction().account().toString();
-
+                            //Get AccountRootObject by using ledger transaction address.
                             AccountRootObject accountInfo = lg.getInfo(AccountAddress, initialMarker);
+                            //Convert domain hex
                             byte[] s = DatatypeConverter.parseHexBinary(accountInfo.domain().get());
+                            //Make 's' readable.
                             String domain = new String(s);
                             if(domain.startsWith("@xnft:")){
-                                logger.info("\n\nFound a NFT");
+                                logger.info("Found a NFT\n");
+                                //Split the domain parts into the array
                                 String[] parts = domain.split("\n");
                                 for(int x = 1; x < parts.length; x++){
                                     if(parts[x].subSequence(5,parts[x].length()).toString().startsWith("Qm")){
@@ -117,20 +118,56 @@ public class xrp4j {
                                             String contentType = new Tika().detect(bytes);
                                             if(contentType.startsWith("image")){
                                                 logger.info("Image content type found...");
+                                                ipfsImage = ("https://gateway.pinata.cloud/ipfs/"+parts[x].subSequence(5, parts[x].length()).toString());
+                                                String PK = String.valueOf(dal.insertLedger(String.valueOf(initialMarker)));
+                                                logger.info("DB Inserted PK: "+ PK);
+                                                //Insert compiled data to database
+                                                dal.insertNFTData(PK, AccountAddress, ipfsImage);
                                             }
                                     }
-                                    //If image convert it to base64
-                                    //else just get the IPFS Hash
-
-                                    //Add it to database
                                 }
                             }
                     }
                     TimeUtils.sleepFor(650,TimeUnit.MILLISECONDS);
                 }
-                //initialMarker++;
+                initialMarker++;
             }while(loop);
+        }
+    }
+    public static class DAL{
+        private Logger logger = Logger.getLogger(DAL.class.getName());
+        private final String userName = System.getenv("dbUsername");
+        private final String password = System.getenv("dbPassword");
+        private final String endpoint = System.getenv("dbEndpoint");
 
+        private Connection getConnection() throws SQLException  {
+            DriverManager.registerDriver(new com.mysql.cj.jdbc.Driver());
+            Connection connection = DriverManager.getConnection(endpoint, userName, password);
+            return connection;
+        }
+
+        public int insertNFTData(String id, String classicAddress, String domainValue) throws SQLException, ClassNotFoundException {
+            Connection connection = getConnection();
+            String SQLQuery = "INSERT INTO indexer.caIndexed (id, classicAddress, domainValue) VALUES (?, ?, ?)";
+            PreparedStatement stmt = connection.prepareStatement(SQLQuery);
+            stmt.setString(1, id);
+            stmt.setString(2, classicAddress);
+            stmt.setString(3, domainValue);
+            return stmt.executeUpdate();
+        }
+
+        public int insertLedger(String ledgerIndex) throws SQLException, ClassNotFoundException {
+            int key = 0;
+            Connection connection = getConnection();
+            String SQLQuery = "INSERT INTO indexer.indexer (ledgerIndex) VALUES (?)";
+            PreparedStatement stmt = connection.prepareStatement(SQLQuery, Statement.RETURN_GENERATED_KEYS);
+            stmt.setString(1, ledgerIndex);
+            stmt.executeUpdate();
+            ResultSet rs = stmt.getGeneratedKeys();
+            while(rs.next()){
+                key = rs.getInt(1);
+            }
+            return key;
         }
     }
 }
