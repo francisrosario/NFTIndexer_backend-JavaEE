@@ -118,7 +118,7 @@ public class xrp4j {
                                             String contentType = new Tika().detect(bytes);
                                             if(contentType.startsWith("image")){
                                                 logger.info("Image content type found...");
-                                                ipfsImage = ("https://gateway.pinata.cloud/ipfs/"+parts[x].subSequence(5, parts[x].length()).toString());
+                                                ipfsImage = ("https://gateway.ipfs.io/ipfs/"+parts[x].subSequence(5, parts[x].length()).toString());
                                                 String PK = String.valueOf(dal.insertLedger(String.valueOf(initialMarker)));
                                                 logger.info("DB Inserted PK: "+ PK);
                                                 //Insert compiled data to database
