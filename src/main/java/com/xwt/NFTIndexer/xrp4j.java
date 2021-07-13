@@ -82,7 +82,7 @@ public class xrp4j {
                         logger.info("Current ledger index is closed, proceeding...\n");
                     } else {
                         logger.info("Ledger is not closed waiting...\n");
-                        TimeUtils.sleepFor(650, TimeUnit.MILLISECONDS);
+                        TimeUtils.sleepFor(800, TimeUnit.MILLISECONDS);
                     }
                 } while (!ledgerIsClosed);
 
@@ -99,6 +99,7 @@ public class xrp4j {
                     TransactionResult<? extends Transaction> transactionResult = getLedgerResult.get(i);
                     //If ACCOUNT_SET domain transaction is found use ledger transaction address to get more data.
                     if(transactionResult.transaction().transactionType().toString() == "ACCOUNT_SET"){
+                        TimeUtils.sleepFor(3, TimeUnit.MINUTES);
                         logger.info(String.valueOf(transactionResult.transaction()));
                         String AccountAddress = transactionResult.transaction().account().toString();
                             //Get AccountRootObject by using ledger transaction address.
@@ -128,7 +129,7 @@ public class xrp4j {
                                 }
                             }
                     }
-                    TimeUtils.sleepFor(650,TimeUnit.MILLISECONDS);
+                    TimeUtils.sleepFor(5, TimeUnit.MINUTES);
                 }
                 initialMarker++;
             }while(loop);
